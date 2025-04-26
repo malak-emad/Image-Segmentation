@@ -21,7 +21,7 @@ import pyqtgraph as pg
 
 
 # Load the UI file
-ui, _ = loadUiType("Image-Segmentation\segmentation.ui")
+ui, _ = loadUiType("segmentation.ui")
 
 class MainApp(QtWidgets.QMainWindow, ui):
     def __init__(self):
