@@ -1,18 +1,7 @@
 import numpy as np
 
 def apply_region_growing(image, seed_points, threshold):
-    """
-    Perform Region Growing on the input image starting from the given seed points.
-
-    Args:
-        image (np.ndarray): Input image (grayscale 2D or color 3D array).
-        seed_points (list of (y, x)): List of seed coordinates.
-        threshold (int): Similarity threshold.
-
-    Returns:
-        np.ndarray: Binary mask (uint8) of segmented region (255 inside, 0 outside).
-    """
-
+    
     # Determine if the image is grayscale or color
     if len(image.shape) == 2:
         is_color = False

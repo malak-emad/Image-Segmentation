@@ -20,6 +20,7 @@ from spectral_threshold import SpectralThreshold
 from optimal_threshold import OptimalThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
+import k_means
 
 
 
@@ -80,21 +81,6 @@ class MainApp(QtWidgets.QMainWindow, ui):
         q_image = QImage(self.img_array.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
         return q_image, self.img_array
-    
-    # Function to display the output image on its label
-    # def display_result_on_label(self, label: QLabel, image: np.ndarray):
-    #     """
-    #     Converts a grayscale NumPy array to QPixmap and sets it on a QLabel.
-    #     """
-    #     if image.dtype != np.uint8:
-    #         image = image.astype(np.uint8)
-
-    #     height, width = image.shape
-    #     bytes_per_line = width
-    #     q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-    #     pixmap = QPixmap.fromImage(q_image)
-    #     label.setPixmap(pixmap)
-    #     label.setScaledContents(True) 
     
 
     def display_result_on_label(self, label: QLabel, image: np.ndarray):
@@ -186,6 +172,9 @@ class MainApp(QtWidgets.QMainWindow, ui):
         self.original_image.setPixmap(QPixmap.fromImage(self.q_image))
 
     def process_clustering(self):
+            # Get the current method (in case it wasn't set yet)
+            if self.cluster_method is None:
+                self.cluster_method = self.cluster_comboBox.currentText()
             if self.cluster_method == "Region Growing":
                 import regiongrowing
 
@@ -209,7 +198,15 @@ class MainApp(QtWidgets.QMainWindow, ui):
                     
 
             elif self.cluster_method == "K-Means":
-                pass
+                    # Get parameters from combo boxes and line edits
+                num_clusters = self.cluster_lineEdit.text()
+                threshold = self.threshold_lineEdit.text()
+                
+                # Apply k-means clustering
+                result = k_means.apply_kmeans(self.img_array, num_clusters, threshold)
+                
+                # Display result
+                self.display_result_on_label(self.result_image, result)
 
             elif self.cluster_method == "Mean-Shift":
                 pass
