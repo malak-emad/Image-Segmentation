@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from spectral_threshold import SpectralThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
-import k_means 
+import k_means
 
 
 
@@ -81,30 +81,49 @@ class MainApp(QtWidgets.QMainWindow, ui):
         
         return q_image, self.img_array
     
+    # Function to display the output image on its label
+    # def display_result_on_label(self, label: QLabel, image: np.ndarray):
+    #     """
+    #     Converts a grayscale NumPy array to QPixmap and sets it on a QLabel.
+    #     """
+    #     if image.dtype != np.uint8:
+    #         image = image.astype(np.uint8)
+
+    #     height, width = image.shape
+    #     bytes_per_line = width
+    #     q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+    #     pixmap = QPixmap.fromImage(q_image)
+    #     label.setPixmap(pixmap)
+    #     label.setScaledContents(True) 
+    
+
     def display_result_on_label(self, label: QLabel, image: np.ndarray):
         """
-        Converts a NumPy array to QPixmap and sets it on a QLabel.
-        Works with both grayscale and color images.
+        Converts a NumPy array (grayscale or RGB) to QPixmap and sets it on a QLabel.
         """
         if image.dtype != np.uint8:
             image = image.astype(np.uint8)
-            
-        # Check if image is grayscale or color
-        if len(image.shape) == 2:
-            # Grayscale image (2D)
+
+        # Handle grayscale and color separately
+        if len(image.shape) == 2:  # Grayscale
             height, width = image.shape
             bytes_per_line = width
             q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-        else:
-            # Color image (3D)
+        elif len(image.shape) == 3 and image.shape[2] == 3:  # Color
             height, width, channels = image.shape
             bytes_per_line = channels * width
             q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-        
+        else:
+            raise ValueError("Unsupported image format for displaying.")
+
         pixmap = QPixmap.fromImage(q_image)
+
+        # Resize pixmap nicely
+        pixmap = pixmap.scaled(label.width(), label.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
         label.setPixmap(pixmap)
         label.setScaledContents(True)
-    
+
     def set_threshold_method(self):
         self.threshold_method = self.threshold_comboBox.currentText()
     
@@ -140,80 +159,64 @@ class MainApp(QtWidgets.QMainWindow, ui):
 
     def select_seed_point(self, event):
         if self.cluster_method != "Region Growing":
-            return  # Only allow clicks for Region Growing
+            return  # Only allow clicking for Region Growing
 
         if self.q_image is None:
             return
 
-        # Get the QLabel dimensions
-        label_width = self.original_image.width()
-        label_height = self.original_image.height()
+        # Calculate clicked coordinates relative to image
+        x = int(event.pos().x() * self.img_array.shape[1] / self.original_image.width())
+        y = int(event.pos().y() * self.img_array.shape[0] / self.original_image.height())
 
-        # Get the image dimensions
-        img_height, img_width = self.img_array.shape[:2]
+        self.seed_points.append((y, x))  # Note: (row, col) == (y, x)
 
-        # Map clicked coordinates correctly
-        clicked_x = event.pos().x()
-        clicked_y = event.pos().y()
-
-        # Scale mouse coordinates to image coordinates
-        image_x = int(clicked_x * img_width / label_width)
-        image_y = int(clicked_y * img_height / label_height)
-
-        # Clip to valid image bounds (in case of slight overflow)
-        image_x = np.clip(image_x, 0, img_width - 1)
-        image_y = np.clip(image_y, 0, img_height - 1)
-
-        self.seed_points.append((image_y, image_x))  # Note (row, col) == (y, x)
-
-        # Draw red hollow circle on a **copy** of the displayed image
-        temp_image = QPixmap(self.q_image)
-        painter = QtGui.QPainter(temp_image)
+        # Draw red hollow circle at click location
+        painter = QtGui.QPainter(self.q_image)
         painter.setPen(QtGui.QPen(Qt.red, 3))
-        scale_x = label_width / img_width
-        scale_y = label_height / img_height
-        painter.drawEllipse(int(image_x * scale_x), int(image_y * scale_y), 8, 8)
+        painter.drawEllipse(event.pos(), 5, 5)
         painter.end()
 
-        self.original_image.setPixmap(temp_image)
+        self.original_image.setPixmap(QPixmap.fromImage(self.q_image))
 
     def process_clustering(self):
-                # Get the current method (in case it wasn't set yet)
-        if self.cluster_method is None:
-            self.cluster_method = self.cluster_comboBox.currentText()
-        if self.cluster_method == "Region Growing":
-            import regiongrowing
+            if self.cluster_method == "Region Growing":
+                import regiongrowing
 
-            if not self.seed_points:
-                print("No seed points selected!")
-                return
+                if not self.seed_points:
+                    print("No seed points selected!")
+                    return
 
-            threshold = int(self.threshold_lineEdit.text())
+                threshold = int(self.threshold_lineEdit.text())
 
-            result = regiongrowing.apply_region_growing(self.img_array, self.seed_points, threshold)
+                result = regiongrowing.apply_region_growing(self.img_array, self.seed_points, threshold)
 
-            self.display_result_on_label(self.result_image, result)
+                self.display_result_on_label(self.result_image, result)
 
-        elif self.cluster_method == "Agglomerative Clustering":
-            # import agglomerative
-            pass
+            elif self.cluster_method == "Agglomerative Clustering":
+                import agglomerative
 
-        elif self.cluster_method == "K-Means":
-            # Get parameters from combo boxes and line edits
-            num_clusters = self.cluster_lineEdit.text()
-            threshold = self.threshold_lineEdit.text()
-            
-            # Apply k-means clustering
-            result = k_means.apply_kmeans(self.img_array, num_clusters, threshold)
-            
-            # Display result
-            self.display_result_on_label(self.result_image, result)
+                num_clusters = int(self.cluster_lineEdit.text())
+                result = agglomerative.apply_agglomerative_clustering(self.img_array, num_clusters)
 
-        elif self.cluster_method == "Mean-Shift":
-            pass
+                self.display_result_on_label(self.result_image, result)
+                    
 
-        else:
-            raise ValueError(f"Unknown segmentation method: '{self.cluster_method}'")
+            elif self.cluster_method == "K-Means":
+                    # Get parameters from combo boxes and line edits
+                num_clusters = self.cluster_lineEdit.text()
+                threshold = self.threshold_lineEdit.text()
+                
+                # Apply k-means clustering
+                result = k_means.apply_kmeans(self.img_array, num_clusters, threshold)
+                
+                # Display result
+                self.display_result_on_label(self.result_image, result)
+
+            elif self.cluster_method == "Mean-Shift":
+                pass
+
+            else:
+                raise ValueError(f"Unknown segmentation method: '{self.cluster_method}'")
 
 
 
