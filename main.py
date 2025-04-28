@@ -81,20 +81,48 @@ class MainApp(QtWidgets.QMainWindow, ui):
         return q_image, self.img_array
     
     # Function to display the output image on its label
+    # def display_result_on_label(self, label: QLabel, image: np.ndarray):
+    #     """
+    #     Converts a grayscale NumPy array to QPixmap and sets it on a QLabel.
+    #     """
+    #     if image.dtype != np.uint8:
+    #         image = image.astype(np.uint8)
+
+    #     height, width = image.shape
+    #     bytes_per_line = width
+    #     q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+    #     pixmap = QPixmap.fromImage(q_image)
+    #     label.setPixmap(pixmap)
+    #     label.setScaledContents(True) 
+    
+
     def display_result_on_label(self, label: QLabel, image: np.ndarray):
         """
-        Converts a grayscale NumPy array to QPixmap and sets it on a QLabel.
+        Converts a NumPy array (grayscale or RGB) to QPixmap and sets it on a QLabel.
         """
         if image.dtype != np.uint8:
             image = image.astype(np.uint8)
 
-        height, width = image.shape
-        bytes_per_line = width
-        q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+        # Handle grayscale and color separately
+        if len(image.shape) == 2:  # Grayscale
+            height, width = image.shape
+            bytes_per_line = width
+            q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+        elif len(image.shape) == 3 and image.shape[2] == 3:  # Color
+            height, width, channels = image.shape
+            bytes_per_line = channels * width
+            q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        else:
+            raise ValueError("Unsupported image format for displaying.")
+
         pixmap = QPixmap.fromImage(q_image)
+
+        # Resize pixmap nicely
+        pixmap = pixmap.scaled(label.width(), label.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
         label.setPixmap(pixmap)
-        label.setScaledContents(True) 
-    
+        label.setScaledContents(True)
+
     def set_threshold_method(self):
         self.threshold_method = self.threshold_comboBox.currentText()
     
@@ -164,8 +192,13 @@ class MainApp(QtWidgets.QMainWindow, ui):
                 self.display_result_on_label(self.result_image, result)
 
             elif self.cluster_method == "Agglomerative Clustering":
-                # import agglomerative
-                pass
+                import agglomerative
+
+                num_clusters = int(self.cluster_lineEdit.text())
+                result = agglomerative.apply_agglomerative_clustering(self.img_array, num_clusters)
+
+                self.display_result_on_label(self.result_image, result)
+                    
 
             elif self.cluster_method == "K-Means":
                 pass
