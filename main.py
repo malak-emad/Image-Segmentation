@@ -20,6 +20,7 @@ from spectral_threshold import SpectralThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
 import k_means
+import mean_shift
 
 
 
@@ -141,6 +142,10 @@ class MainApp(QtWidgets.QMainWindow, ui):
     #####segmentation 
     def set_cluster_method(self):
         self.cluster_method = self.cluster_comboBox.currentText()
+        if self.cluster_method == "Mean-Shift":
+            self.label_6.setText("Window Size:")
+        else: 
+            self.label_6.setText("Clusters:")
 
     def select_seed_point(self, event):
         if self.cluster_method != "Region Growing":
@@ -201,7 +206,19 @@ class MainApp(QtWidgets.QMainWindow, ui):
                 self.display_result_on_label(self.result_image, result)
 
             elif self.cluster_method == "Mean-Shift":
-                pass
+                # Get parameters from line edits
+                window_size = self.cluster_lineEdit.text()
+                convergence_threshold = self.threshold_lineEdit.text()
+                
+                # Show progress message
+                print("Starting Mean-Shift segmentation. This may take a while...")
+                
+                # Apply mean-shift clustering
+                result = mean_shift.apply_meanshift(self.img_array, window_size, convergence_threshold)
+                
+                # Display result
+                self.display_result_on_label(self.result_image, result)
+                print("Mean-Shift segmentation completed!")
 
             else:
                 raise ValueError(f"Unknown segmentation method: '{self.cluster_method}'")
