@@ -18,6 +18,8 @@ import logging
 logger = logging.getLogger(__name__)
 from spectral_threshold import SpectralThreshold
 import pyqtgraph as pg
+from PyQt5 import QtGui
+
 
 
 # Load the UI file
@@ -37,6 +39,18 @@ class MainApp(QtWidgets.QMainWindow, ui):
         self.global_radioButton.clicked.connect(lambda: self.set_threshold_mode("Global"))
         self.applyThreshold_button.clicked.connect(self.process_threshold)
         self.seg_frame.hide()
+
+
+
+        #### segmentation
+        self.cluster_method = None
+        self.seed_points = []  # Store clicked seeds
+
+        self.cluster_comboBox.currentIndexChanged.connect(self.set_cluster_method)
+        self.applyCluster_button.clicked.connect(self.process_clustering)
+
+        self.original_image.mousePressEvent = self.select_seed_point
+
 
 
 
@@ -110,8 +124,76 @@ class MainApp(QtWidgets.QMainWindow, ui):
                 raise ValueError(f"Unknown thresholding method: '{self.threshold_method}'")
             
 
+    #####segmentation 
+    def set_cluster_method(self):
+        self.cluster_method = self.cluster_comboBox.currentText()
 
-    
+    def select_seed_point(self, event):
+        if self.cluster_method != "Region Growing":
+            return  # Only allow clicks for Region Growing
+
+        if self.q_image is None:
+            return
+
+        # Get the QLabel dimensions
+        label_width = self.original_image.width()
+        label_height = self.original_image.height()
+
+        # Get the image dimensions
+        img_height, img_width = self.img_array.shape[:2]
+
+        # Map clicked coordinates correctly
+        clicked_x = event.pos().x()
+        clicked_y = event.pos().y()
+
+        # Scale mouse coordinates to image coordinates
+        image_x = int(clicked_x * img_width / label_width)
+        image_y = int(clicked_y * img_height / label_height)
+
+        # Clip to valid image bounds (in case of slight overflow)
+        image_x = np.clip(image_x, 0, img_width - 1)
+        image_y = np.clip(image_y, 0, img_height - 1)
+
+        self.seed_points.append((image_y, image_x))  # Note (row, col) == (y, x)
+
+        # Draw red hollow circle on a **copy** of the displayed image
+        temp_image = QPixmap(self.q_image)
+        painter = QtGui.QPainter(temp_image)
+        painter.setPen(QtGui.QPen(Qt.red, 3))
+        scale_x = label_width / img_width
+        scale_y = label_height / img_height
+        painter.drawEllipse(int(image_x * scale_x), int(image_y * scale_y), 8, 8)
+        painter.end()
+
+        self.original_image.setPixmap(temp_image)
+
+    def process_clustering(self):
+        if self.cluster_method == "Region Growing":
+            import regiongrowing
+
+            if not self.seed_points:
+                print("No seed points selected!")
+                return
+
+            threshold = int(self.threshold_lineEdit.text())
+
+            result = regiongrowing.apply_region_growing(self.img_array, self.seed_points, threshold)
+
+            self.display_result_on_label(self.result_image, result)
+
+        elif self.cluster_method == "Agglomerative Clustering":
+            # import agglomerative
+            pass
+
+        elif self.cluster_method == "K-Means":
+            pass
+
+        elif self.cluster_method == "Mean-Shift":
+            pass
+
+        else:
+            raise ValueError(f"Unknown segmentation method: '{self.cluster_method}'")
+
 
 
 if __name__ == "__main__":
