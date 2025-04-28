@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from spectral_threshold import SpectralThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
+import k_means 
 
 
 
@@ -80,20 +81,29 @@ class MainApp(QtWidgets.QMainWindow, ui):
         
         return q_image, self.img_array
     
-    # Function to display the output image on its label
     def display_result_on_label(self, label: QLabel, image: np.ndarray):
         """
-        Converts a grayscale NumPy array to QPixmap and sets it on a QLabel.
+        Converts a NumPy array to QPixmap and sets it on a QLabel.
+        Works with both grayscale and color images.
         """
         if image.dtype != np.uint8:
             image = image.astype(np.uint8)
-
-        height, width = image.shape
-        bytes_per_line = width
-        q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+            
+        # Check if image is grayscale or color
+        if len(image.shape) == 2:
+            # Grayscale image (2D)
+            height, width = image.shape
+            bytes_per_line = width
+            q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+        else:
+            # Color image (3D)
+            height, width, channels = image.shape
+            bytes_per_line = channels * width
+            q_image = QImage(image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        
         pixmap = QPixmap.fromImage(q_image)
         label.setPixmap(pixmap)
-        label.setScaledContents(True) 
+        label.setScaledContents(True)
     
     def set_threshold_method(self):
         self.threshold_method = self.threshold_comboBox.currentText()
@@ -168,6 +178,9 @@ class MainApp(QtWidgets.QMainWindow, ui):
         self.original_image.setPixmap(temp_image)
 
     def process_clustering(self):
+                # Get the current method (in case it wasn't set yet)
+        if self.cluster_method is None:
+            self.cluster_method = self.cluster_comboBox.currentText()
         if self.cluster_method == "Region Growing":
             import regiongrowing
 
@@ -186,7 +199,15 @@ class MainApp(QtWidgets.QMainWindow, ui):
             pass
 
         elif self.cluster_method == "K-Means":
-            pass
+            # Get parameters from combo boxes and line edits
+            num_clusters = self.cluster_lineEdit.text()
+            threshold = self.threshold_lineEdit.text()
+            
+            # Apply k-means clustering
+            result = k_means.apply_kmeans(self.img_array, num_clusters, threshold)
+            
+            # Display result
+            self.display_result_on_label(self.result_image, result)
 
         elif self.cluster_method == "Mean-Shift":
             pass
