@@ -150,6 +150,7 @@ class MainApp(QtWidgets.QMainWindow, ui):
     #####segmentation 
     def set_cluster_method(self):
         self.cluster_method = self.cluster_comboBox.currentText()
+
         if self.cluster_method == "Mean-Shift":
             self.label_6.setText("Window Size:")
         else: 
@@ -162,14 +163,14 @@ class MainApp(QtWidgets.QMainWindow, ui):
         if self.q_image is None:
             return
 
-        # QLabel (frame) size
+        # QLabel size
         label_width = self.original_image.width()
         label_height = self.original_image.height()
 
         # Original image size
         img_height, img_width = self.img_array.shape[:2]
 
-        # Pixmap size (displayed image inside QLabel)
+        # displayed image inside QLabel size
         pixmap = self.original_image.pixmap()
         pixmap_width = pixmap.width()
         pixmap_height = pixmap.height()
@@ -182,7 +183,7 @@ class MainApp(QtWidgets.QMainWindow, ui):
         clicked_x_on_pixmap = clicked_x * pixmap_width / label_width
         clicked_y_on_pixmap = clicked_y * pixmap_height / label_height
 
-        # Now scale pixmap coordinates back to real image coordinates
+        # scale pixmap coordinates back to real image coordinates
         image_x = int(clicked_x_on_pixmap * img_width / pixmap_width)
         image_y = int(clicked_y_on_pixmap * img_height / pixmap_height)
 
@@ -190,10 +191,10 @@ class MainApp(QtWidgets.QMainWindow, ui):
         image_x = np.clip(image_x, 0, img_width - 1)
         image_y = np.clip(image_y, 0, img_height - 1)
 
-        # Save the real seed pixel for algorithm
+        # send the real image coordinates to the algorithm 
         self.seed_points.append((image_y, image_x))
 
-        # Draw circle centered on correct place
+        # Draw the red circles 
         temp_pixmap = pixmap.copy()
         painter = QtGui.QPainter(temp_pixmap)
         painter.setPen(QtGui.QPen(Qt.red, 2))
@@ -207,6 +208,7 @@ class MainApp(QtWidgets.QMainWindow, ui):
             # Get the current method (in case it wasn't set yet)
             if self.cluster_method is None:
                 self.cluster_method = self.cluster_comboBox.currentText()
+                
             if self.cluster_method == "Region Growing":
                 import regiongrowing
 

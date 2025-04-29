@@ -18,10 +18,10 @@ def apply_region_growing(image, seed_points, threshold):
     # Keep track of visited pixels
     visited = np.zeros((height, width), dtype=bool)
 
-    # Create a list (queue) to manage growth
+    # Create a list to manage growth
     to_visit = list(seed_points)
 
-    # Get the pixel values at the seeds
+    # Get the pixel values at each seed point
     if is_color:
         seed_values = [image[y, x, :].astype(np.float32) for y, x in seed_points]
     else:
@@ -37,7 +37,7 @@ def apply_region_growing(image, seed_points, threshold):
         visited[y, x] = True
         mask[y, x] = 255
 
-        # Check 4-connected neighbors (up, down, left, right)
+        # Check 4-connected neighbors 
         neighbors = [
             (y-1, x),
             (y+1, x),
@@ -49,12 +49,13 @@ def apply_region_growing(image, seed_points, threshold):
             if 0 <= ny < height and 0 <= nx < width and not visited[ny, nx]:
                 if is_color:
                     pixel_value = image[ny, nx, :].astype(np.float32)
-                    # Compare to all seeds and take the min distance
+                    # Compare to all seeds and take the min distance (euclidean distance)
                     min_distance = min(np.linalg.norm(pixel_value - seed_val) for seed_val in seed_values)
                     if min_distance < threshold:
                         to_visit.append((ny, nx))
                 else:
                     pixel_value = image[ny, nx].astype(np.float32)
+                    # absolute diff.
                     min_distance = min(abs(pixel_value - seed_val) for seed_val in seed_values)
                     if min_distance < threshold:
                         to_visit.append((ny, nx))
