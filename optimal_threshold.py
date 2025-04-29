@@ -1,136 +1,200 @@
-import numpy as np
 import cv2
+import numpy as np
 
 class OptimalThreshold:
-    @staticmethod
-    def apply_global_thresholding(image):
-        """
-        Apply global optimal thresholding to a grayscale image.
-        
-        Args:
-            image: Grayscale input image as numpy array
-            
-        Returns:
-            Binary segmented image
-        """
-        if len(image.shape) > 2:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        
-        # Step 1: Initialize threshold using the four corners as background
-        h, w = image.shape
-        corners = [image[0, 0], image[0, w-1], image[h-1, 0], image[h-1, w-1]]
-        t_old = np.mean(corners)
-        
-        # Convergence criteria
-        max_iterations = 100
-        epsilon = 0.5
-        
-        for _ in range(max_iterations):
-            # Step 2: Segment image using current threshold
-            background = image[image <= t_old]
-            objects = image[image > t_old]
-            
-            # Check if we have pixels in both classes
-            if len(background) == 0 or len(objects) == 0:
-                break
-                
-            # Calculate mean of each class
-            mu_b = np.mean(background)
-            mu_o = np.mean(objects)
-            
-            # Step 3: Update threshold
-            t_new = (mu_b + mu_o) / 2
-            
-            # Step 4: Check convergence
-            if abs(t_new - t_old) < epsilon:
-                break
-                
-            t_old = t_new
-        
-        # Apply final threshold
-        binary_image = np.zeros_like(image)
-        binary_image[image > t_old] = 255
-        
-        return binary_image
+    """
+    Implementation of Optimal Thresholding technique for image segmentation.
+    Can operate in both Global and Local modes.
+    """
     
     @staticmethod
-    def apply_local_thresholding(image, window_size):
+    def apply_global_threshold(image):
         """
-        Apply local optimal thresholding to a grayscale image.
+        Applies global optimal thresholding to a grayscale image
         
         Args:
-            image: Grayscale input image as numpy array
-            window_size: Size of the local window
+            image: NumPy array of grayscale image
             
         Returns:
-            Binary segmented image
+            Binary thresholded image
         """
-        if len(image.shape) > 2:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        # Make a copy to avoid modifying original
+        src = np.copy(image)
+        
+        # Convert to grayscale if needed
+        if len(src.shape) > 2:
+            src = cv2.cvtColor(src, cv2.COLOR_RGB2GRAY)
+        
+        # Calculate initial threshold (averaging 4 corners as background and rest as foreground)
+        old_threshold = OptimalThreshold._get_initial_threshold(src)
+        
+        # Iteratively refine the threshold
+        new_threshold = OptimalThreshold._get_optimal_threshold(src, old_threshold)
+        iteration = 0
+        max_iterations = 100  # Safety to prevent infinite loops
+        
+        # Iterate until threshold stabilizes or max iterations reached
+        while old_threshold != new_threshold and iteration < max_iterations:
+            old_threshold = new_threshold
+            new_threshold = OptimalThreshold._get_optimal_threshold(src, old_threshold)
+            iteration += 1
             
-        h, w = image.shape
-        binary_image = np.zeros_like(image)
+        # Apply global threshold using the computed optimal value
+        result = np.zeros_like(src, dtype=np.uint8)
+        result[src >= new_threshold] = 255
         
-        # Validate window size
-        if window_size % 2 == 0:
-            window_size += 1  # Ensure window size is odd
-        
-        half_window = window_size // 2
-        
-        # Process each pixel with local window
-        for i in range(h):
-            for j in range(w):
-                # Define local window boundaries
-                row_start = max(0, i - half_window)
-                row_end = min(h, i + half_window + 1)
-                col_start = max(0, j - half_window)
-                col_end = min(w, j + half_window + 1)
-                
-                # Extract local window
-                local_window = image[row_start:row_end, col_start:col_end]
-                
-                # Apply optimal thresholding to local window
-                local_mean = np.mean(local_window)
-                
-                # Simplified version for local windows:
-                # Instead of iterative process, we'll use a simpler approach for local windows
-                # Take pixels below and above the mean for initial classes
-                background = local_window[local_window <= local_mean]
-                objects = local_window[local_window > local_mean]
-                
-                # Check if we have pixels in both classes
-                if len(background) == 0 or len(objects) == 0:
-                    threshold = local_mean
-                else:
-                    # Calculate mean of each class
-                    mu_b = np.mean(background)
-                    mu_o = np.mean(objects)
-                    
-                    # Update threshold
-                    threshold = (mu_b + mu_o) / 2
-                
-                # Apply threshold to current pixel
-                if image[i, j] > threshold:
-                    binary_image[i, j] = 255
-        
-        return binary_image
-
+        return result
+    
     @staticmethod
-    def applySegmentation(image, mode="Global", window_size=15):
+    def apply_local_threshold(image, window_size):
         """
-        Main interface method to apply optimal thresholding segmentation
+        Applies local optimal thresholding to a grayscale image by dividing
+        the image into regions of window_size x window_size
+        
+        Args:
+            image: NumPy array of grayscale image
+            window_size: Size of local regions 
+            
+        Returns:
+            Binary thresholded image
+        """
+        # Make a copy to avoid modifying original
+        src = np.copy(image)
+        
+        # Convert to grayscale if needed
+        if len(src.shape) > 2:
+            src = cv2.cvtColor(src, cv2.COLOR_RGB2GRAY)
+        
+        # Get image dimensions
+        height, width = src.shape
+        
+        # Calculate the number of regions in x and y directions
+        regions_y = height // window_size
+        regions_x = width // window_size
+        
+        # Add extra region if there's a remainder
+        if height % window_size != 0:
+            regions_y += 1
+        if width % window_size != 0:
+            regions_x += 1
+        
+        # Create output image
+        result = np.zeros_like(src, dtype=np.uint8)
+        
+        # Process each local region
+        for y in range(regions_y):
+            y_start = y * window_size
+            y_end = min((y + 1) * window_size, height)
+            
+            for x in range(regions_x):
+                x_start = x * window_size
+                x_end = min((x + 1) * window_size, width)
+                
+                # Extract local region
+                local_region = src[y_start:y_end, x_start:x_end]
+                
+                # Skip very small regions or uniform regions
+                if local_region.size <= 1 or np.min(local_region) == np.max(local_region):
+                    continue
+                
+                # Apply optimal thresholding to local region
+                try:
+                    # Calculate initial threshold
+                    init_threshold = OptimalThreshold._get_initial_threshold(local_region)
+                    
+                    # Iteratively refine the threshold
+                    old_threshold = init_threshold
+                    new_threshold = OptimalThreshold._get_optimal_threshold(local_region, old_threshold)
+                    iteration = 0
+                    max_iterations = 50  # Safety to prevent infinite loops
+                    
+                    # Iterate until threshold stabilizes
+                    while old_threshold != new_threshold and iteration < max_iterations:
+                        old_threshold = new_threshold
+                        new_threshold = OptimalThreshold._get_optimal_threshold(local_region, old_threshold)
+                        iteration += 1
+                    
+                    # Apply threshold to local region
+                    result[y_start:y_end, x_start:x_end] = np.where(
+                        local_region >= new_threshold, 255, 0
+                    )
+                except:
+                    # In case of any error (e.g., division by zero), skip this region
+                    continue
+        
+        return result
+    
+    @staticmethod
+    def _get_initial_threshold(image):
+        """
+        Gets the initial threshold by assuming the four corners are background
+        and the rest is foreground, as described in the algorithm.
+        """
+        # Get image dimensions
+        height, width = image.shape
+        
+        # Calculate background mean from the four corners
+        background_mean = (
+            int(image[0, 0]) + 
+            int(image[0, width-1]) + 
+            int(image[height-1, 0]) + 
+            int(image[height-1, width-1])
+        ) / 4
+        
+        # Calculate foreground mean from all other pixels
+        total_sum = np.sum(image)
+        corner_sum = int(image[0, 0]) + int(image[0, width-1]) + int(image[height-1, 0]) + int(image[height-1, width-1])
+        foreground_sum = total_sum - corner_sum
+        foreground_pixels = image.size - 4
+        foreground_mean = foreground_sum / foreground_pixels if foreground_pixels > 0 else 0
+        
+        # Initial threshold is average of background and foreground means
+        threshold = (background_mean + foreground_mean) / 2
+        
+        return threshold
+    
+    @staticmethod
+    def _get_optimal_threshold(image, threshold):
+        """
+        Calculates optimal threshold based on the given initial threshold.
+        Implements the algorithm as shown in the image.
+        """
+        # Separate pixels into background and foreground based on current threshold
+        background = image[image < threshold]
+        foreground = image[image >= threshold]
+        
+        # Handle empty classes
+        if background.size == 0:
+            background_mean = 0
+        else:
+            background_mean = np.mean(background)
+            
+        if foreground.size == 0:
+            foreground_mean = 255
+        else:
+            foreground_mean = np.mean(foreground)
+        
+        # Calculate new threshold as average of class means
+        optimal_threshold = (background_mean + foreground_mean) / 2
+        
+        return optimal_threshold
+    
+    @staticmethod
+    def applySegmentation(image, mode="Global", window_size=8):
+        """
+        Main method to apply optimal thresholding segmentation
         
         Args:
             image: Input image (grayscale or RGB)
-            mode: "Global" or "Local" thresholding
-            window_size: Size of local window (only used for local thresholding)
+            mode: "Global" or "Local" thresholding mode
+            window_size: Size of local windows (only used if mode is "Local")
             
         Returns:
-            Binary segmented image
+            Binary thresholded image
         """
         if mode == "Global":
-            return OptimalThreshold.apply_global_thresholding(image)
+            return OptimalThreshold.apply_global_threshold(image)
         elif mode == "Local":
-            return OptimalThreshold.apply_local_thresholding(image, window_size)
+            return OptimalThreshold.apply_local_threshold(image, window_size)
         else:
             raise ValueError(f"Unknown thresholding mode: {mode}")

@@ -18,6 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 from spectral_threshold import SpectralThreshold
 from optimal_threshold import OptimalThreshold
+from otsu_threshold import OtsuThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
 import k_means
@@ -133,7 +134,13 @@ class MainApp(QtWidgets.QMainWindow, ui):
                 segmented_image = OptimalThreshold.applySegmentation(gray, self.threshold_mode, self.window_size)
                 self.display_result_on_label(self.result_image, segmented_image)
             case "OTSU Thresholding":
-                pass
+                gray = cv2.cvtColor(self.img_array, cv2.COLOR_RGB2GRAY)
+                if self.threshold_mode == "Global":
+                    self.window_size = 1
+                else: 
+                    self.window_size = int(self.wSize_lineEdit.text())
+                segmented_image = OtsuThreshold.applySegmentation(gray, self.threshold_mode, self.window_size)
+                self.display_result_on_label(self.result_image, segmented_image)
             case "Spectral Thresholding":
                 gray = cv2.cvtColor(self.img_array, cv2.COLOR_RGB2GRAY)
                 if self.threshold_mode == "Global":

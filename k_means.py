@@ -2,15 +2,15 @@ import numpy as np
 
 def apply_kmeans_clustering(image, num_clusters, threshold):
     # Step 1: determine no. pixels in img
-    height, width, channels = image.shape
-    num_pixels = height * width
+    height, width, channels = image.shape #EX: 800,600
+    num_pixels = height * width #EX: 800x600 =480000
     
     #reshape img to 2D array of pixels (num_pixels x channels)
-    pixels = image.reshape(num_pixels, channels).astype(np.float64)
+    pixels = image.reshape(num_pixels, channels).astype(np.float64) #EX: 480000,3, each row represent a pixel, each col represent a color channel
     
     # Step 2: Randomly generate initial centroids
-    indices = np.random.choice(num_pixels, num_clusters, replace=False)
-    centroids = pixels[indices]
+    indices = np.random.choice(num_pixels, num_clusters, replace=False) #initialize centroids according to num_clusters EX:5
+    centroids = pixels[indices] #contain RGB values of initialized centroids
     
     #initialize variables for convergence check
     prev_centroids = np.zeros_like(centroids)
@@ -25,7 +25,7 @@ def apply_kmeans_clustering(image, num_clusters, threshold):
         
         # Step 3: Vectorized assignment of pixels to nearest centroids
         #calculate distances from all pixels to all centroids at once
-        distances = np.zeros((num_pixels, num_clusters))
+        distances = np.zeros((num_pixels, num_clusters)) #Distances dimension = 480000 x 5
         for k in range(num_clusters):
             # broadcasting to calculate distances efficiently
             distances[:, k] = np.sum((pixels - centroids[k]) ** 2, axis=1) #no need for square root as it inc. computational cost without affect result
