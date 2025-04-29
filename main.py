@@ -22,6 +22,7 @@ from otsu_threshold import OtsuThreshold
 import pyqtgraph as pg
 from PyQt5 import QtGui
 import k_means
+import mean_shift
 
 
 
@@ -156,27 +157,58 @@ class MainApp(QtWidgets.QMainWindow, ui):
     #####segmentation 
     def set_cluster_method(self):
         self.cluster_method = self.cluster_comboBox.currentText()
+        if self.cluster_method == "Mean-Shift":
+            self.label_6.setText("Window Size:")
+        else: 
+            self.label_6.setText("Clusters:")
 
     def select_seed_point(self, event):
         if self.cluster_method != "Region Growing":
-            return  # Only allow clicking for Region Growing
+            return
 
         if self.q_image is None:
             return
 
-        # Calculate clicked coordinates relative to image
-        x = int(event.pos().x() * self.img_array.shape[1] / self.original_image.width())
-        y = int(event.pos().y() * self.img_array.shape[0] / self.original_image.height())
+        # QLabel (frame) size
+        label_width = self.original_image.width()
+        label_height = self.original_image.height()
 
-        self.seed_points.append((y, x))  # Note: (row, col) == (y, x)
+        # Original image size
+        img_height, img_width = self.img_array.shape[:2]
 
-        # Draw red hollow circle at click location
-        painter = QtGui.QPainter(self.q_image)
-        painter.setPen(QtGui.QPen(Qt.red, 3))
-        painter.drawEllipse(event.pos(), 5, 5)
+        # Pixmap size (displayed image inside QLabel)
+        pixmap = self.original_image.pixmap()
+        pixmap_width = pixmap.width()
+        pixmap_height = pixmap.height()
+
+        # Mouse click position relative to QLabel
+        clicked_x = event.pos().x()
+        clicked_y = event.pos().y()
+
+        # Rescale click to pixmap coordinates
+        clicked_x_on_pixmap = clicked_x * pixmap_width / label_width
+        clicked_y_on_pixmap = clicked_y * pixmap_height / label_height
+
+        # Now scale pixmap coordinates back to real image coordinates
+        image_x = int(clicked_x_on_pixmap * img_width / pixmap_width)
+        image_y = int(clicked_y_on_pixmap * img_height / pixmap_height)
+
+        # Clip coordinates to image
+        image_x = np.clip(image_x, 0, img_width - 1)
+        image_y = np.clip(image_y, 0, img_height - 1)
+
+        # Save the real seed pixel for algorithm
+        self.seed_points.append((image_y, image_x))
+
+        # Draw circle centered on correct place
+        temp_pixmap = pixmap.copy()
+        painter = QtGui.QPainter(temp_pixmap)
+        painter.setPen(QtGui.QPen(Qt.red, 2))
+        radius = 5
+        painter.drawEllipse(int(clicked_x_on_pixmap) - radius, int(clicked_y_on_pixmap) - radius, 2 * radius, 2 * radius)
         painter.end()
 
-        self.original_image.setPixmap(QPixmap.fromImage(self.q_image))
+        self.original_image.setPixmap(temp_pixmap)
 
     def process_clustering(self):
             # Get the current method (in case it wasn't set yet)
@@ -205,7 +237,7 @@ class MainApp(QtWidgets.QMainWindow, ui):
                     
 
             elif self.cluster_method == "K-Means":
-                    # Get parameters from combo boxes and line edits
+                # Get parameters from combo boxes and line edits
                 num_clusters = self.cluster_lineEdit.text()
                 threshold = self.threshold_lineEdit.text()
                 
@@ -216,7 +248,19 @@ class MainApp(QtWidgets.QMainWindow, ui):
                 self.display_result_on_label(self.result_image, result)
 
             elif self.cluster_method == "Mean-Shift":
-                pass
+                # Get parameters from line edits
+                window_size = self.cluster_lineEdit.text()
+                convergence_threshold = self.threshold_lineEdit.text()
+                
+                # Show progress message
+                print("Starting Mean-Shift segmentation. This may take a while...")
+                
+                # Apply mean-shift clustering
+                result = mean_shift.apply_meanshift(self.img_array, window_size, convergence_threshold)
+                
+                # Display result
+                self.display_result_on_label(self.result_image, result)
+                print("Mean-Shift segmentation completed!")
 
             else:
                 raise ValueError(f"Unknown segmentation method: '{self.cluster_method}'")

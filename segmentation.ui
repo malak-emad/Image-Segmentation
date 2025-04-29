@@ -590,7 +590,7 @@ color: white;</string>
                     <widget class="QLabel" name="label_6">
                      <property name="maximumSize">
                       <size>
-                       <width>70</width>
+                       <width>90</width>
                        <height>20</height>
                       </size>
                      </property>
